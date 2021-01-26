@@ -1,6 +1,6 @@
 ---
 - name: Install ZFS 
-  include: ./zfs.yml
+  include_tasks: ./zfs.yml
 - name: Initialise opam
   command: opam init -y
   register: opaminit
@@ -15,9 +15,34 @@
     state: directory
 - name: Install a system compiler
   command: opam exec -- opam sysinstall build --latest=1 --prefix="{{ ansible_env.HOME }}/ocaml" --jobs=4
-- name: Get OBuilder
-  command: "opam exec -- opam pin add git+https://github.com/patricoferris/obuilder#macos --yes"
-- name: OBuilder
-  command: opam exec -- obuilder version
+- name: Get opam-health-check
+  command: "git clone --branch macos --recursive https://github.com/patricoferris/opam-health-check.git {{ ansible_env.HOME }}/opam-health-check"
+- name: "Run {{ item }}"
+  command: "{{ item }}"
+  loop:
+    - "opam pin add -yn ./ocluster/obuilder"
+    - "opam pin add -yn ./ocluster"
+    - "opam pin add -yn ./"
+    - "opam install opam-depext -y"
+    - "opam depext -iy ocluster"
+    - "opam install -y . --deps-only"
+  args:
+    chdir: "{{ ansible_env.HOME }}/opam-health-check"
+- name: Build and Install
+  command:
+    cmd: "opam exec -- dune build @install"
+    chdir: "{{ ansible_env.HOME }}/opam-health-check"
+- name: OCluster Worker?
+  command: opam exec -- olcuster-worker --help=plain
   register: obuilderverion
 - debug: msg="{{ obuilderverion }}"
+- name: Get OBuilder-fs
+  command: "git clone https://github.com/patricoferris/obuilder-fs {{ ansible_env.HOME }}/obuilder-fs"
+- name: Install OBuilder-fs
+  command:
+    cmd: make
+    chdir: "{{ ansible_env.HOME }}/obuilder-fs"
+- name: Print information
+  command: "{{ ansible_env.HOME }}/obuilder-fs/install/obuilderfs --help"
+  register: obuilderfs
+- debug: msg="{{ obuilderfs }}"
